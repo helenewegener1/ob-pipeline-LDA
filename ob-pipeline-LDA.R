@@ -9,6 +9,7 @@ library(flowCore)
 library(MASS)
 library(devtools)
 library(readr)
+library(purrr)
 library(dplyr)
 library(glue)
 
@@ -23,47 +24,54 @@ source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/
 ##    Wrangle format at location to fit with the tool 
 ## ============================================================
 
-dataset_path <- "/home/projects/dp_immunoth/data/benchmark_flow/FR-FCM-Z2KP/healthy_final"
+# Path to zipped data
+dataset_path <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/prep_data/out"
 
-# List all files in dataset
-files <- list.files(path = dataset_path, pattern = '.csv',full.names = TRUE)
-file_names <- lapply(files, basename)
+# LOAD TRAINING X
+train_x_path <- glue("{dataset_path}/train_x.zip")
+train_x_zip_contents <- unzip(train_x_path, list = TRUE)$Name
+csv_files <- train_x_zip_contents[grepl("\\.csv$", train_x_zip_contents)]
 
-# Extract the first file as training sample and the rest as test.
-train_path <- files[[1]]
-test_paths <- files[c(2:length(files))]
-
-# Load files - only first 10000 lines of each file as test, use full dataset for real run
-train <- read.csv(file = train_path, nrows = 10000)
-test_list <- lapply(test_paths, function(x) read.csv(file = x, nrows = 10000))
-
-# Extract training set (without labels)
-train_x <- train[,!(colnames(train) %in% c("label", "cell_id"))]
-
-# Extract training labels
-train_y <- train$label %>% as.data.frame()
-
-# Extract test set (without labels)
-test_x_list <- lapply(test_list, function(df) {
-  df[, !(colnames(df) %in% c("label", "cell_id"))]
+train_x_list <- lapply(csv_files, function(f) {
+  read.csv(unz(train_x_path, f))
 })
-names(test_x_list) <- file_names[2:length(files)]
 
-# Extract test labels
-test_y_list <- lapply(test_list, function(df) {
-  df$label
+# LOAD TRAINING Y
+train_y_path <- glue("{dataset_path}/train_y.zip")
+train_y_zip_contents <- unzip(train_y_path, list = TRUE)$Name
+csv_files <- train_y_zip_contents[grepl("\\.csv$", train_y_zip_contents)]
+
+train_y_list <- lapply(csv_files, function(f) {
+  read.csv(unz(train_y_path, f))
 })
-names(test_y_list) <- file_names[2:length(files)]
+
+# LOAD TEST X
+test_x_path <- glue("{dataset_path}/test_x.zip")
+test_x_zip_contents <- unzip(test_x_path, list = TRUE)$Name
+csv_files <- test_x_zip_contents[grepl("\\.csv$", test_x_zip_contents)]
+
+test_x_list <- lapply(csv_files, function(f) {
+  read.csv(unz(test_x_path, f))
+})
+
+# # LOAD TEST Y
+# test_y_path <- glue("{dataset_path}/test_y.zip")
+# test_y_zip_contents <- unzip(test_y_path, list = TRUE)$Name
+# csv_files <- test_y_zip_contents[grepl("\\.csv$", test_y_zip_contents)]
+# 
+# test_y_list <- lapply(csv_files, function(f) {
+#   read.csv(unz(test_y_path, f))
+# })
 
 # RelevantMarkers needed for function 
-RelevantMarkers_char <- colnames(train_x)
+RelevantMarkers_char <- colnames(train_x_list[[1]]) # ASSUMING TRAINING SAMPLES HAVE SAME COLUMNS
 names(RelevantMarkers_char) <- 1:length(RelevantMarkers_char)
 RelevantMarkers <- names(RelevantMarkers_char) %>% as.integer()
 
-# Specify paths - should be somewhere in the benchmark - tpm folder?
-TrainingSamplesExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tpm/TrainingSamplesExt"
-TrainingLabelsExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tpm/TrainingLabelsExt"
-TestingSamplesExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tpm/TestingSamplesExt"
+# Specify paths - should be somewhere in the benchmark - tmp folder?
+TrainingSamplesExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/TrainingSamplesExt"
+TrainingLabelsExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/TrainingLabelsExt"
+TestingSamplesExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/TestingSamplesExt"
 
 dirs <- c(TrainingSamplesExt, TrainingLabelsExt, TestingSamplesExt)
 
@@ -77,32 +85,41 @@ for (d in dirs) {
 }
 
 # Save without header
-write_delim(
-  x = train_x, 
-  file = paste0(TrainingSamplesExt, "/train_x.csv"), 
-  col_names = FALSE,
-  delim = ","
-)
-
-write_delim(
-  x = train_y, 
-  file = paste0(TrainingLabelsExt, "/train_y.csv"), 
-  col_names = FALSE,
-  delim = ","
-)
-
 invisible(
-  lapply(names(test_x_list), function(nm) {
+  lapply(1:length(train_x_list), function(nm) {
     write_delim(
-      x = test_x_list[[nm]],
-      file = file.path(TestingSamplesExt, paste0("test_x_", nm)), # already have csv extension
+      x = train_x_list[[nm]],
+      file = file.path(TrainingSamplesExt, glue("train_x_{nm}.csv")), # already have csv extension
       col_names = FALSE,
       delim = ","
     )
   })
 )
 
-# list.files(path = "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tpm/TrainingSamplesExt", pattern = '.csv',full.names = TRUE)
+invisible(
+  lapply(1:length(train_y_list), function(nm) {
+    write_delim(
+      x = train_y_list[[nm]],
+      file = file.path(TrainingLabelsExt, glue("train_y_{nm}.csv")), # already have csv extension
+      col_names = FALSE,
+      delim = ","
+    )
+  })
+)
+
+invisible(
+  lapply(1:length(test_x_list), function(nm) {
+    write_delim(
+      x = test_x_list[[nm]],
+      file = file.path(TestingSamplesExt, glue("test_x_{nm}.csv")), # already have csv extension
+      col_names = FALSE,
+      delim = ","
+    )
+  })
+)
+
+
+# list.files(path = "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp/TrainingSamplesExt", pattern = '.csv',full.names = TRUE)
 
 ## ============================================================
 ## 4. Train LDA model
@@ -133,58 +150,28 @@ pred_labels_all <- CyTOF_LDApredict(
   RejectionThreshold = RejectionThreshold
 )
 
-names(pred_labels_all) <- names(test_y_list)
+## ============================================================
+## 6. Export labels 
+## ============================================================ 
 
-# Delete tpm folder now that we used it
-unlink("/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tpm/", recursive = TRUE)
-
-# Export pred_labels
-# MAKE THIS OMNIBENCHMARK FRIENDLY
-out_dir <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/LDA_predictions/"
-
-for (sample_name in names(test_y_list)){
+export_list_as_zipped_csv <- function(lst, zip_path) {
   
-  # sample_name <- names(test_y_list)[[1]]
-  out_sample_name <- glue("LDA_predicted_{sample_name}")
-  pred_labels <- pred_labels_all[[sample_name]]
-  test_y_char <- test_y_list[[sample_name]]
+  file_names <- sprintf("%s_%d.csv", "labels", seq_along(lst))
   
-  if (length(pred_labels) != length(test_y_char)) {
-    
-    message("Predicted and real test labels are of different lengths.")
-    message(glue("Predicted labels have {length(pred_labels)} entries."))
-    message(glue("Real labels have {length(test_y_char)} entries."))
-    
-  } else {
-    message("Predicted and real test labels are of same lengths. Saving predicted labels...")
-    
-    if (!dir.exists(out_dir)) {
-      dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-    } 
-    
-    write_delim(
-      x = train_y, 
-      file = paste0(out_dir, out_sample_name), 
-      col_names = FALSE,
-      delim = ","
-    )
-    
+  # Write the CSVs to the working directory
+  for (i in seq_along(lst)) {
+    df <- data.frame(label = lst[[i]])
+    write.csv(df, file_names[i], row.names = FALSE)
   }
   
-  acc <- mean(pred_labels == test_y_char)
-  print(sample_name)
-  print(acc)
+  # Use system zip (same as right-click compress)
+  system(sprintf("zip -j %s %s", zip_path, paste(file_names, collapse = " ")))
   
+  return(zip_path)
 }
 
+export_list_as_zipped_csv(pred_labels_all, "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/ob-pipeline-LDA/out/labels.zip")
 
-## ============================================================
-## 6. Evaluate performance (if true labels available)
-## ============================================================
 
-# cat("\nAccuracy:\n")
-# acc <- mean(pred_labels == test_y_char)
-# print(acc)
-# 
-# cat("\nConfusion matrix:\n")
-# print(table(Predicted = pred_labels, True = test_y_char))
+# Delete tmp folder now that we used it
+unlink("/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/", recursive = TRUE)
