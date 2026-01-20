@@ -72,7 +72,7 @@ train_x_list <- lapply(csv_files, function(f) {
 })
 
 # LOAD TRAINING Y
-train_y_path <- glue("{dataset_path}/train_y.zip")
+# train_y_path <- glue("{dataset_path}/train_y.zip")
 train_y_path <- args[['labels_train']]
 train_y_zip_contents <- unzip(train_y_path, list = TRUE)$Name
 csv_files <- train_y_zip_contents[grepl("\\.csv$", train_y_zip_contents)]
@@ -212,4 +212,4 @@ export_list_as_zipped_csv(pred_labels_all, args[['output_dir']])
 
 
 # Delete tmp folder now that we used it
-unlink("/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/", recursive = TRUE)
+# unlink("/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/", recursive = TRUE)
