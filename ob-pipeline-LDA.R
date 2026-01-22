@@ -1,10 +1,11 @@
 ## ============================================================
 ## 0. Install dependencies
 ## ============================================================
-if (!require("flowCore")) install.packages("flowCore")
-if (!require("MASS")) install.packages("MASS")
-if (!require("devtools")) install.packages("devtools")
+# if (!require("flowCore")) install.packages("flowCore")
+# if (!require("MASS")) install.packages("MASS")
+# if (!require("devtools")) install.packages("devtools")
 
+library(argparse)
 library(flowCore)
 library(MASS)
 library(devtools)
@@ -12,6 +13,10 @@ library(readr)
 library(purrr)
 library(dplyr)
 library(glue)
+library(data.table)
+library(archive)
+
+# setwd("~/Documents/courses/Benchmarking/repos/ob-pipeline-LDA/")
 
 ## ============================================================
 ## 1. Load CyTOF-Linear-Classifier functions from GitHub
@@ -23,9 +28,6 @@ source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/
 ## 2. Specify paths to your data
 ##    Wrangle format at location to fit with the tool 
 ## ============================================================
-
-# Path to zipped data
-# dataset_path <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/prep_data/out"
 
 # GET ARGUMENTS 
 parser <- ArgumentParser(description="FCPS caller")
@@ -48,11 +50,6 @@ parser$add_argument('--test.data.matrix',
 parser$add_argument('--labels_test',
                     type="character",
                     help='gz-compressed textfile with the true labels.')
-parser$add_argument('--seed',
-                    type="integer",
-                    help='Random seed',
-                    default = 819797,
-                    dest = 'seed')
 parser$add_argument("--output_dir", "-o", dest="output_dir", type="character",
                     help="output directory where files will be saved", default=getwd())
 parser$add_argument("--name", "-n", dest="name", type="character", help="name of the dataset")
@@ -60,55 +57,75 @@ parser$add_argument("--name", "-n", dest="name", type="character", help="name of
 
 args <- parser$parse_args()
 
+# FOR TESTING
+# Path to zipped data
+# dataset_path <- "/Users/srz223/Documents/courses/Benchmarking/repos/ob-pipeline-cytof/out/data/data_import/dataset_name-FR-FCM-Z2KP_virus_final_seed-42/preprocessing/data_preprocessing/num-1_test-sample-limit-5"
+# train_x_path <- glue("{dataset_path}/data_import.train.matrix.tar.gz") 
+# train_y_path <- glue("{dataset_path}/data_import.train.labels.tar.gz")
+# # test_y_path <- glue("{dataset_path}/data_import.test.labels.tar.gz")
+# test_x_path <- glue("{dataset_path}/data_import.test.matrices.tar.gz")
 
+# ---------------------------
 # LOAD TRAINING X
-# train_x_path <- glue("{dataset_path}/train_x.zip")
+# ---------------------------
 train_x_path <- args[['train.data.matrix']]
-train_x_zip_contents <- unzip(train_x_path, list = TRUE)$Name
-csv_files <- train_x_zip_contents[grepl("\\.csv$", train_x_zip_contents)]
+train_x_files <- archive(train_x_path)$path
 
-train_x_list <- lapply(csv_files, function(f) {
-  read.csv(unz(train_x_path, f))
-})
+# Open a connection to the inner file and read it as CSV (no column names)
+train_x_list <- vector("list", length(train_x_files))
+names(train_x_list) <- train_x_files
 
+for (file in train_x_files){
+  con <- archive_read(train_x_path, file)
+  df <- read_csv(con, col_names = FALSE)
+  train_x_list[[file]] <- df
+}
+
+# ---------------------------
 # LOAD TRAINING Y
-# train_y_path <- glue("{dataset_path}/train_y.zip")
+# ---------------------------
 train_y_path <- args[['labels_train']]
-train_y_zip_contents <- unzip(train_y_path, list = TRUE)$Name
-csv_files <- train_y_zip_contents[grepl("\\.csv$", train_y_zip_contents)]
+train_y_files <- archive(train_y_path)$path
 
-train_y_list <- lapply(csv_files, function(f) {
-  read.csv(unz(train_y_path, f))
-})
+# Open a connection to the inner file and read it as CSV (no column names)
+train_y_list <- vector("list", length(train_y_files))
+names(train_y_list) <- train_y_files
 
+for (file in train_y_files){
+  con <- archive_read(train_y_path, file)
+  df <- read_csv(con, col_names = FALSE)
+  train_y_list[[file]] <- df
+}
+
+# ---------------------------
 # LOAD TEST X
-# test_x_path <- glue("{dataset_path}/test_x.zip")
+# ---------------------------
 test_x_path <- args[['test.data.matrix']]
-test_x_zip_contents <- unzip(test_x_path, list = TRUE)$Name
-csv_files <- test_x_zip_contents[grepl("\\.csv$", test_x_zip_contents)]
+test_x_files <- archive(test_x_path)$path
 
-test_x_list <- lapply(csv_files, function(f) {
-  read.csv(unz(test_x_path, f))
-})
+# Open a connection to the inner file and read it as CSV (no column names)
+test_x_list <- vector("list", length(test_x_files))
+names(test_x_list) <- test_x_files
 
-# # LOAD TEST Y
-# test_y_path <- glue("{dataset_path}/test_y.zip")
-# test_y_zip_contents <- unzip(test_y_path, list = TRUE)$Name
-# csv_files <- test_y_zip_contents[grepl("\\.csv$", test_y_zip_contents)]
-# 
-# test_y_list <- lapply(csv_files, function(f) {
-#   read.csv(unz(test_y_path, f))
-# })
+for (file in test_x_files){
+  con <- archive_read(test_x_path, file)
+  df <- read_csv(con, col_names = FALSE)
+  test_x_list[[file]] <- df
+}
 
+# ---------------------------
 # RelevantMarkers needed for function 
-RelevantMarkers_char <- colnames(train_x_list[[1]]) # ASSUMING TRAINING SAMPLES HAVE SAME COLUMNS
+# ---------------------------
+RelevantMarkers_char <- colnames(train_x_list[[1]]) # Assuming all training samples have same columns 
 names(RelevantMarkers_char) <- 1:length(RelevantMarkers_char)
 RelevantMarkers <- names(RelevantMarkers_char) %>% as.integer()
 
+# ---------------------------
 # Specify paths - should be somewhere in the benchmark - tmp folder?
-TrainingSamplesExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/TrainingSamplesExt"
-TrainingLabelsExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/TrainingLabelsExt"
-TestingSamplesExt <- "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/TestingSamplesExt"
+# ---------------------------
+TrainingSamplesExt <- "./tmp_LDA/TrainingSamplesExt"
+TrainingLabelsExt <- "./tmp_LDA/TrainingLabelsExt"
+TestingSamplesExt <- "./tmp_LDA/TestingSamplesExt"
 
 dirs <- c(TrainingSamplesExt, TrainingLabelsExt, TestingSamplesExt)
 
@@ -123,10 +140,10 @@ for (d in dirs) {
 
 # Save without header
 invisible(
-  lapply(1:length(train_x_list), function(nm) {
+  lapply(names(train_x_list), function(nm) {
     write_delim(
       x = train_x_list[[nm]],
-      file = file.path(TrainingSamplesExt, glue("train_x_{nm}.csv")), # already have csv extension
+      file = file.path(TrainingSamplesExt, glue("LDA_{nm}")), # already have csv extension
       col_names = FALSE,
       delim = ","
     )
@@ -134,10 +151,10 @@ invisible(
 )
 
 invisible(
-  lapply(1:length(train_y_list), function(nm) {
+  lapply(names(train_y_list), function(nm) {
     write_delim(
       x = train_y_list[[nm]],
-      file = file.path(TrainingLabelsExt, glue("train_y_{nm}.csv")), # already have csv extension
+      file = file.path(TrainingLabelsExt, glue("LDA_{nm}")), # already have csv extension
       col_names = FALSE,
       delim = ","
     )
@@ -145,21 +162,18 @@ invisible(
 )
 
 invisible(
-  lapply(1:length(test_x_list), function(nm) {
+  lapply(names(test_x_list), function(nm) {
     write_delim(
       x = test_x_list[[nm]],
-      file = file.path(TestingSamplesExt, glue("test_x_{nm}.csv")), # already have csv extension
+      file = file.path(TestingSamplesExt, glue("LDA_{nm}")), # already have csv extension
       col_names = FALSE,
       delim = ","
     )
   })
 )
 
-
-# list.files(path = "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp/TrainingSamplesExt", pattern = '.csv',full.names = TRUE)
-
 ## ============================================================
-## 4. Train LDA model
+## 3. Train LDA model
 ## ============================================================
 
 cat("Training LDA model…\n")
@@ -174,11 +188,11 @@ LDAclassifier <- CyTOF_LDAtrain(
 )
 
 ## ============================================================
-## 5. Predict labels on test data
+## 4. Predict labels on test data
 ## ============================================================
 cat("Predicting…\n")
 
-RejectionThreshold <- 0.7 # set to something OR parameter
+RejectionThreshold <- 0.7 # parameter, set to 0.7 in example and is hence interpreted and default.
 
 pred_labels_all <- CyTOF_LDApredict(
   Model = LDAclassifier,
@@ -187,29 +201,35 @@ pred_labels_all <- CyTOF_LDApredict(
   RejectionThreshold = RejectionThreshold
 )
 
+names(pred_labels_all) <- names(test_x_list)
+
 ## ============================================================
-## 6. Export labels 
+## 5. Export labels 
 ## ============================================================ 
 
-export_list_as_zipped_csv <- function(lst, zip_path) {
+# Create a temporary folder to store CSVs
+output_dir <- args[['output_dir']]
+# output_dir <- "./out_test/"
+tmp_dir <- tempdir()
+csv_files <- character(length(pred_labels_all))
+
+# Loop through the list and write each CSV
+i <- 1
+for (name in names(pred_labels_all)) {
   
-  file_names <- sprintf("%s_%d.csv", "labels", seq_along(lst))
+  csv_file <- file.path(tmp_dir, name)
   
-  # Write the CSVs to the working directory
-  for (i in seq_along(lst)) {
-    df <- data.frame(label = lst[[i]])
-    write.csv(df, file_names[i], row.names = FALSE)
-  }
+  # If the element is a data.frame or list, coerce to data.frame
+  df <- as.data.frame(pred_labels_all[[name]])
   
-  # Use system zip (same as right-click compress)
-  system(sprintf("zip -j %s %s", zip_path, paste(file_names, collapse = " ")))
+  write_delim(df, file = csv_file, col_names = FALSE, quote = "none", delim = ",")
+  csv_files[i] <- csv_file
+  i <- i + 1
   
-  return(zip_path)
 }
 
-# export_list_as_zipped_csv(pred_labels_all, "/home/projects/dp_immunoth/people/helweg/projects/benchmarking/ob-pipeline-LDA/out/labels.zip")
-export_list_as_zipped_csv(pred_labels_all, args[['output_dir']])
-
+# Create tar.gz archive of all CSVs
+tar(tarfile = glue("{output_dir}/pred.tar.gz"), files = csv_files, compression = "gzip", tar = "internal")
 
 # Delete tmp folder now that we used it
-# unlink("/home/projects/dp_immunoth/people/helweg/projects/benchmarking/tmp_LDA/", recursive = TRUE)
+unlink("./tmp_LDA/", recursive = TRUE)
