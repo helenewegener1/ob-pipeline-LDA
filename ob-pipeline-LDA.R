@@ -227,7 +227,9 @@ for (name in names(pred_labels_all)) {
 }
 
 # Create tar.gz archive of all CSVs
-tar(tarfile = glue("{output_dir}/pred.tar.gz"), files = csv_files, compression = "gzip", tar = "internal")
+name <- args[['name']]
+tar(tarfile = glue("{output_dir}/{name}_predicted_labels.tar.gz"), files = csv_files, compression = "gzip", tar = "internal")
+
 
 # Delete tmp folder now that we used it
 unlink("./tmp_LDA/", recursive = TRUE)
