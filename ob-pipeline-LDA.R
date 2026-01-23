@@ -10,9 +10,7 @@ library(argparse)
 library(glue)
 library(readr)
 library(dplyr)
-
-devtools::install_cran("archive")
-library(archive)
+library(utils)
 
 # setwd("~/Documents/courses/Benchmarking/repos/ob-pipeline-LDA/")
 
@@ -67,15 +65,27 @@ args <- parser$parse_args()
 # LOAD TRAINING X
 # ---------------------------
 train_x_path <- args[['train.data.matrix']]
-train_x_files <- archive(train_x_path)$path
+# train_x_files <- archive(train_x_path)$path
+# 
+# # Open a connection to the inner file and read it as CSV (no column names)
+# train_x_list <- vector("list", length(train_x_files))
+# names(train_x_list) <- train_x_files
+# 
+# for (file in train_x_files){
+#   con <- archive_read(train_x_path, file)
+#   df <- read_csv(con, col_names = FALSE)
+#   train_x_list[[file]] <- df
+# }
 
-# Open a connection to the inner file and read it as CSV (no column names)
-train_x_list <- vector("list", length(train_x_files))
-names(train_x_list) <- train_x_files
+train_x_files <- utils::untar(train_x_path, list = TRUE)
+train_x_list <- setNames(vector("list", length(train_x_files)), train_x_files)
 
-for (file in train_x_files){
-  con <- archive_read(train_x_path, file)
-  df <- read_csv(con, col_names = FALSE)
+# extract to a temp dir
+tmp <- tempdir()
+utils::untar(train_x_path, exdir = tmp)
+
+for (file in train_x_files) {
+  df <- read_csv(file.path(tmp, file), col_names = FALSE)
   train_x_list[[file]] <- df
 }
 
@@ -83,15 +93,27 @@ for (file in train_x_files){
 # LOAD TRAINING Y
 # ---------------------------
 train_y_path <- args[['labels_train']]
-train_y_files <- archive(train_y_path)$path
+# train_y_files <- archive(train_y_path)$path
+# 
+# # Open a connection to the inner file and read it as CSV (no column names)
+# train_y_list <- vector("list", length(train_y_files))
+# names(train_y_list) <- train_y_files
+# 
+# for (file in train_y_files){
+#   con <- archive_read(train_y_path, file)
+#   df <- read_csv(con, col_names = FALSE)
+#   train_y_list[[file]] <- df
+# }
 
-# Open a connection to the inner file and read it as CSV (no column names)
-train_y_list <- vector("list", length(train_y_files))
-names(train_y_list) <- train_y_files
+train_y_files <- utils::untar(train_y_path, list = TRUE)
+train_y_list <- setNames(vector("list", length(train_y_files)), train_y_files)
 
-for (file in train_y_files){
-  con <- archive_read(train_y_path, file)
-  df <- read_csv(con, col_names = FALSE)
+# extract to a temp dir
+tmp <- tempdir()
+utils::untar(train_y_path, exdir = tmp)
+
+for (file in train_y_files) {
+  df <- read_csv(file.path(tmp, file), col_names = FALSE)
   train_y_list[[file]] <- df
 }
 
@@ -99,15 +121,27 @@ for (file in train_y_files){
 # LOAD TEST X
 # ---------------------------
 test_x_path <- args[['test.data.matrix']]
-test_x_files <- archive(test_x_path)$path
+# test_x_files <- archive(test_x_path)$path
+# 
+# # Open a connection to the inner file and read it as CSV (no column names)
+# test_x_list <- vector("list", length(test_x_files))
+# names(test_x_list) <- test_x_files
+# 
+# for (file in test_x_files){
+#   con <- archive_read(test_x_path, file)
+#   df <- read_csv(con, col_names = FALSE)
+#   test_x_list[[file]] <- df
+# }
 
-# Open a connection to the inner file and read it as CSV (no column names)
-test_x_list <- vector("list", length(test_x_files))
-names(test_x_list) <- test_x_files
+test_x_files <- utils::untar(test_x_path, list = TRUE)
+test_x_list <- setNames(vector("list", length(test_x_files)), test_x_files)
 
-for (file in test_x_files){
-  con <- archive_read(test_x_path, file)
-  df <- read_csv(con, col_names = FALSE)
+# extract to a temp dir
+tmp <- tempdir()
+utils::untar(test_x_path, exdir = tmp)
+
+for (file in test_x_files) {
+  df <- read_csv(file.path(tmp, file), col_names = FALSE)
   test_x_list[[file]] <- df
 }
 
